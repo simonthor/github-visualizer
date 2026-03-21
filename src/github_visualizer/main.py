@@ -324,11 +324,13 @@ def parse_args() -> argparse.Namespace:
         help="Output SVG path (default: <username>-contributions.svg)",
     )
     parser.add_argument(
+        "-s",
         "--start-year",
         type=int,
         help="Override first year (default: account creation year)",
     )
     parser.add_argument(
+        "-e",
         "--end-year",
         type=int,
         help="Override last year (default: current year)",
