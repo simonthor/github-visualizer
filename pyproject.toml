@@ -3,12 +3,32 @@ name = "github-visualizer"
 version = "0.1.0"
 description = "Generate wide SVG files from GitHub contribution data"
 requires-python = ">=3.12"
-dependencies = [
-  "pytest>=9.0.2",
-]
+readme = "README.md"
+
+[project.scripts]
+github-visualizer = "github_visualizer.main:main"
 
 [tool.uv]
-package = false
+package = true
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+
+[build-system]
+requires = ["uv_build>=0.10.9,<0.11.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "github_visualizer"
+module-root = "src"
+
+[dependency-groups]
+dev = [
+  "pytest",
+]
+lint = [
+  "ruff",
+]
+type-check = [
+  "ty",
+]

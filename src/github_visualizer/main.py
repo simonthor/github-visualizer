@@ -132,7 +132,9 @@ def _http_get(url: str) -> str:
             raise GitHubFetchError("GitHub user not found.") from exc
         raise GitHubFetchError(f"GitHub returned HTTP {exc.code} for {url}") from exc
     except urllib.error.URLError as exc:
-        raise GitHubFetchError(f"Network error while calling GitHub: {exc.reason}") from exc
+        raise GitHubFetchError(
+            f"Network error while calling GitHub: {exc.reason}"
+        ) from exc
 
 
 def fetch_created_year(username: str) -> int:
@@ -153,11 +155,15 @@ def fetch_created_year(username: str) -> int:
     try:
         created_dt = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
     except ValueError as exc:
-        raise GitHubFetchError("Could not parse created_at from GitHub API response.") from exc
+        raise GitHubFetchError(
+            "Could not parse created_at from GitHub API response."
+        ) from exc
     return created_dt.year
 
 
-def fetch_year_cells(username: str, year: int, year_end: date) -> dict[date, ContributionCell]:
+def fetch_year_cells(
+    username: str, year: int, year_end: date
+) -> dict[date, ContributionCell]:
     year_start = date(year, 1, 1)
     to_date = min(year_end, date(year, 12, 31))
     encoded_username = urllib.parse.quote(username, safe="")
@@ -177,7 +183,9 @@ def fetch_year_cells(username: str, year: int, year_end: date) -> dict[date, Con
     return parser.cells
 
 
-def fetch_all_cells(username: str, start_year: int, end_year: int) -> dict[date, ContributionCell]:
+def fetch_all_cells(
+    username: str, start_year: int, end_year: int
+) -> dict[date, ContributionCell]:
     today = date.today()
     all_cells: dict[date, ContributionCell] = {}
     for year in range(start_year, end_year + 1):
@@ -344,8 +352,10 @@ def main() -> int:
     cells = fetch_all_cells(args.username, start_year=start_year, end_year=end_year)
     svg_text = build_svg(args.username, cells, start_year=start_year, end_year=end_year)
 
-    output_path = args.output if args.output is not None else Path(
-        f"{args.username}-contributions.svg"
+    output_path = (
+        args.output
+        if args.output is not None
+        else Path(f"{args.username}-contributions.svg")
     )
     output_path.write_text(svg_text, encoding="utf-8")
     print(f"Wrote {output_path} ({start_year}-{end_year}, {len(cells)} days parsed)")

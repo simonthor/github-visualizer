@@ -1,6 +1,6 @@
 from datetime import date
 
-from github_contributions_svg import (
+from github_visualizer.main import (
     ContributionCell,
     _contribution_count_to_level,
     build_svg,
@@ -38,7 +38,18 @@ def test_build_svg_uses_count_based_colors():
 
     svg = build_svg("tester", cells, start_year=2025, end_year=2025)
 
-    assert 'fill="#ebedf0"' in svg and "<title>0 contributions on 2025-01-01</title>" in svg
-    assert 'fill="#9be9a8"' in svg and "<title>1 contribution on 2025-01-02</title>" in svg
-    assert 'fill="#30a14e"' in svg and "<title>10 contributions on 2025-01-03</title>" in svg
-    assert 'fill="#216e39"' in svg and "<title>20 contributions on 2025-01-04</title>" in svg
+    assert (
+        'fill="#ebedf0"' in svg
+        and "<title>0 contributions on 2025-01-01</title>" in svg
+    )
+    assert (
+        'fill="#9be9a8"' in svg and "<title>1 contribution on 2025-01-02</title>" in svg
+    )
+    assert (
+        'fill="#30a14e"' in svg
+        and "<title>10 contributions on 2025-01-03</title>" in svg
+    )
+    assert (
+        'fill="#216e39"' in svg
+        and "<title>20 contributions on 2025-01-04</title>" in svg
+    )
