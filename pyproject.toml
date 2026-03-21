@@ -1,0 +1,14 @@
+[project]
+name = "github-visualizer"
+version = "0.1.0"
+description = "Generate wide SVG files from GitHub contribution data"
+requires-python = ">=3.12"
+dependencies = [
+  "pytest>=9.0.2",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
