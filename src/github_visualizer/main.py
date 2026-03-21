@@ -15,6 +15,7 @@ from datetime import date, datetime, timedelta
 from html import escape
 from html.parser import HTMLParser
 from pathlib import Path
+from typing import Literal
 
 
 GITHUB_LEVEL_COLORS = {
@@ -33,6 +34,9 @@ class GitHubFetchError(RuntimeError):
 @dataclass(frozen=True)
 class ContributionCell:
     count: int | None
+
+
+IntervalMode = Literal["none", "year", "month"]
 
 
 def _parse_count_from_tooltip(text: str) -> int | None:
@@ -194,6 +198,10 @@ def fetch_all_cells(
     return all_cells
 
 
+def _weekday_sunday_first(day: date) -> int:
+    return (day.weekday() + 1) % 7
+
+
 def _previous_sunday(day: date) -> date:
     # Python weekday: Monday=0 ... Sunday=6, so convert to distance from Sunday.
     offset = (day.weekday() + 1) % 7
@@ -206,8 +214,81 @@ def _next_saturday(day: date) -> date:
     return day + timedelta(days=offset)
 
 
-def _weekday_sunday_first(day: date) -> int:
-    return (day.weekday() + 1) % 7
+def _next_month_start(day: date) -> date:
+    if day.month == 12:
+        return date(day.year + 1, 1, 1)
+    return date(day.year, day.month + 1, 1)
+
+
+@dataclass(frozen=True)
+class ContributionSegment:
+    label: str
+    start: date
+    end: date
+
+
+@dataclass(frozen=True)
+class SegmentLayout:
+    segment: ContributionSegment
+    grid_start: date
+    grid_end: date
+    total_weeks: int
+
+
+def _build_segments(
+    first_day: date, last_day: date, interval: IntervalMode
+) -> list[ContributionSegment]:
+    if interval == "none":
+        return [ContributionSegment(label="All", start=first_day, end=last_day)]
+
+    if interval == "year":
+        segments: list[ContributionSegment] = []
+        for year in range(first_day.year, last_day.year + 1):
+            segment_start = date(year, 1, 1)
+            segment_end = min(date(year, 12, 31), last_day)
+            segments.append(
+                ContributionSegment(
+                    label=str(year),
+                    start=segment_start,
+                    end=segment_end,
+                )
+            )
+        return segments
+
+    if interval == "month":
+        segments = []
+        cursor = date(first_day.year, first_day.month, 1)
+        while cursor <= last_day:
+            next_start = _next_month_start(cursor)
+            segment_end = min(next_start - timedelta(days=1), last_day)
+            segments.append(
+                ContributionSegment(
+                    label=cursor.strftime("%Y-%m"),
+                    start=cursor,
+                    end=segment_end,
+                )
+            )
+            cursor = next_start
+        return segments
+
+    raise ValueError(f"Unsupported interval: {interval}")
+
+
+def _build_segment_layouts(segments: list[ContributionSegment]) -> list[SegmentLayout]:
+    layouts: list[SegmentLayout] = []
+    for segment in segments:
+        grid_start = _previous_sunday(segment.start)
+        grid_end = _next_saturday(segment.end)
+        total_weeks = ((grid_end - grid_start).days // 7) + 1
+        layouts.append(
+            SegmentLayout(
+                segment=segment,
+                grid_start=grid_start,
+                grid_end=grid_end,
+                total_weeks=total_weeks,
+            )
+        )
+    return layouts
 
 
 def _contribution_count_to_level(contribution_count: int, max_count: int) -> int:
@@ -233,25 +314,38 @@ def build_svg(
     cells: dict[date, ContributionCell],
     start_year: int,
     end_year: int,
+    interval: IntervalMode = "none",
 ) -> str:
     today = date.today()
     first_day = date(start_year, 1, 1)
     last_day = min(date(end_year, 12, 31), today)
 
-    grid_start = _previous_sunday(first_day)
-    grid_end = _next_saturday(last_day)
+    segments = _build_segments(
+        first_day=first_day, last_day=last_day, interval=interval
+    )
+    layouts = _build_segment_layouts(segments)
 
     cell_size = 10
     gap = 2
     pitch = cell_size + gap
-    left_pad = 44
-    top_pad = 28
+    left_pad = 88
+    top_pad = 26
+    row_header_height = 16
+    row_gap = 14
     right_pad = 18
     bottom_pad = 16
 
-    total_weeks = ((grid_end - grid_start).days // 7) + 1
-    width = left_pad + total_weeks * pitch + right_pad
-    height = top_pad + 7 * pitch + bottom_pad
+    max_weeks = max(layout.total_weeks for layout in layouts)
+    row_height = 7 * pitch
+    row_block_height = row_header_height + row_height
+    total_rows = len(layouts)
+    width = left_pad + max_weeks * pitch + right_pad
+    height = (
+        top_pad
+        + total_rows * row_block_height
+        + max(0, total_rows - 1) * row_gap
+        + bottom_pad
+    )
 
     svg_lines: list[str] = [
         (
@@ -262,49 +356,55 @@ def build_svg(
         "<style>",
         "  text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; }",
         "</style>",
-        f'<text x="{left_pad}" y="14" font-size="12" fill="#24292f">{escape(username)} contributions ({start_year}-{end_year})</text>',
+        (
+            f'<text x="{left_pad}" y="14" font-size="12" fill="#24292f">'
+            f"{escape(username)} contributions ({start_year}-{end_year}, interval={interval})"
+            "</text>"
+        ),
     ]
-
-    for year in range(start_year, end_year + 1):
-        jan_first = date(year, 1, 1)
-        if jan_first > grid_end:
-            continue
-        x = left_pad + ((jan_first - grid_start).days // 7) * pitch
-        svg_lines.append(
-            f'<text x="{x}" y="26" font-size="10" fill="#57606a">{year}</text>'
-        )
-
-    weekday_labels = [("Sun", 0), ("Tue", 2), ("Thu", 4), ("Sat", 6)]
-    for label, row in weekday_labels:
-        y = top_pad + row * pitch + 8
-        svg_lines.append(
-            f'<text x="8" y="{y}" font-size="9" fill="#57606a">{label}</text>'
-        )
 
     max_count = max((cell.count or 0) for cell in cells.values()) if cells else 0
 
-    day = grid_start
-    while day <= grid_end:
-        week_index = (day - grid_start).days // 7
-        row = _weekday_sunday_first(day)
-        x = left_pad + week_index * pitch
-        y = top_pad + row * pitch
+    weekday_labels = [("Sun", 0), ("Tue", 2), ("Thu", 4), ("Sat", 6)]
 
-        cell = cells.get(day)
-        count = cell.count if cell is not None else None
-
-        contribution_count = count if count is not None else 0
-        level = _contribution_count_to_level(contribution_count, max_count)
-        color = GITHUB_LEVEL_COLORS.get(level, GITHUB_LEVEL_COLORS[0])
-        unit = "contribution" if contribution_count == 1 else "contributions"
-        title = f"{contribution_count} {unit} on {day.isoformat()}"
+    for row_index, layout in enumerate(layouts):
+        segment = layout.segment
+        block_top = top_pad + row_index * (row_block_height + row_gap)
+        row_title_y = block_top + 11
+        grid_top = block_top + row_header_height
 
         svg_lines.append(
-            f'<rect x="{x}" y="{y}" width="{cell_size}" height="{cell_size}" fill="{color}" rx="2" ry="2">'
-            f"<title>{escape(title)}</title>"
-            "</rect>"
+            f'<text x="8" y="{row_title_y}" font-size="10" fill="#57606a">{escape(segment.label)}</text>'
         )
-        day += timedelta(days=1)
+
+        for label, weekday_row in weekday_labels:
+            y = grid_top + weekday_row * pitch + 8
+            svg_lines.append(
+                f'<text x="44" y="{y}" font-size="9" fill="#57606a">{label}</text>'
+            )
+
+        day = segment.start
+        while day <= segment.end:
+            week_index = (day - layout.grid_start).days // 7
+            weekday_row = _weekday_sunday_first(day)
+            x = left_pad + week_index * pitch
+            y = grid_top + weekday_row * pitch
+
+            cell = cells.get(day)
+            count = cell.count if cell is not None else None
+
+            contribution_count = count if count is not None else 0
+            level = _contribution_count_to_level(contribution_count, max_count)
+            color = GITHUB_LEVEL_COLORS.get(level, GITHUB_LEVEL_COLORS[0])
+            unit = "contribution" if contribution_count == 1 else "contributions"
+            title = f"{contribution_count} {unit} on {day.isoformat()}"
+
+            svg_lines.append(
+                f'<rect x="{x}" y="{y}" width="{cell_size}" height="{cell_size}" fill="{color}" rx="2" ry="2">'
+                f"<title>{escape(title)}</title>"
+                "</rect>"
+            )
+            day += timedelta(days=1)
 
     svg_lines.append("</svg>")
     return "\n".join(svg_lines) + "\n"
@@ -335,6 +435,12 @@ def parse_args() -> argparse.Namespace:
         type=int,
         help="Override last year (default: current year)",
     )
+    parser.add_argument(
+        "--interval",
+        choices=("none", "year", "month"),
+        default="none",
+        help="Split rows by interval: none (single row), year, or month.",
+    )
     return parser.parse_args()
 
 
@@ -352,7 +458,13 @@ def main() -> int:
         raise ValueError("end-year cannot be in the future.")
 
     cells = fetch_all_cells(args.username, start_year=start_year, end_year=end_year)
-    svg_text = build_svg(args.username, cells, start_year=start_year, end_year=end_year)
+    svg_text = build_svg(
+        args.username,
+        cells,
+        start_year=start_year,
+        end_year=end_year,
+        interval=args.interval,
+    )
 
     output_path = (
         args.output

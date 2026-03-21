@@ -22,10 +22,10 @@ github-visualizer <github_username> --output <output_file.svg>
 Additional options include:
 - `--start-year <year>`: Specify the starting year for the contributions (default is the earliest year of contributions).
 - `--end-year <year>`: Specify the ending year for the contributions (default is the latest year of contributions).
+- `--interval <none|year|month>`: Split the output into rows by full period, by year, or by month. For `year` and `month`, each row starts on the first day of that year/month.
 
 ## Example
 To visualize the contributions of the user `simonthor` and save it as `simonthor-contributions.svg`, you would run:
 ```bash
 github-visualizer simonthor --output simonthor-contributions.svg
 ```
-
