@@ -1,6 +1,6 @@
 from datetime import date
 
-from github_visualizer.main import (
+from github_visualizer.svg import (
     ContributionCell,
     _contribution_count_to_level,
     build_svg,

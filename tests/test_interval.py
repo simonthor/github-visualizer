@@ -1,6 +1,6 @@
 from datetime import date
 
-from github_visualizer.main import ContributionCell, build_svg
+from github_visualizer.svg import ContributionCell, build_svg
 
 
 def test_build_svg_interval_year_splits_rows():
