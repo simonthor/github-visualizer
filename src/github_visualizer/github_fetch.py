@@ -16,6 +16,13 @@ class GitHubFetchError(RuntimeError):
 
 
 def _parse_count_from_tooltip(text: str) -> int | None:
+    """Extract a numeric contribution count from tooltip text.
+
+    :param text: Tooltip text from GitHub contribution markup.
+    :returns: Parsed contribution count, ``0`` for ``"No contributions"``, or
+        ``None`` when the text does not contain a parseable count.
+    """
+
     normalized = " ".join(text.split())
     if not normalized:
         return None
@@ -97,6 +104,13 @@ class ContributionRectParser(HTMLParser):
 
 
 def _http_get(url: str) -> str:
+    """Fetch a URL and return UTF-8 decoded response content.
+
+    :param url: HTTP URL to fetch.
+    :returns: Decoded response body text.
+    :raises GitHubFetchError: When network or HTTP failures occur.
+    """
+
     request = urllib.request.Request(
         url,
         headers={
@@ -118,6 +132,15 @@ def _http_get(url: str) -> str:
 
 
 def fetch_created_year(username: str) -> int:
+    """Fetch the account creation year for a GitHub user.
+
+    :param username: GitHub username.
+    :returns: Year extracted from ``created_at`` in the GitHub user API
+        response.
+    :raises GitHubFetchError: If API response parsing fails or the user cannot
+        be retrieved.
+    """
+
     encoded_username = urllib.parse.quote(username, safe="")
     body = _http_get(f"https://api.github.com/users/{encoded_username}")
     try:
@@ -144,6 +167,19 @@ def fetch_created_year(username: str) -> int:
 def fetch_year_cells(
     username: str, year: int, year_end: date
 ) -> dict[date, ContributionCell]:
+    """Fetch contribution cells for one year slice.
+
+    Uses the GitHub contributions endpoint bounded by ``year`` start and
+    ``year_end`` to avoid requesting future dates.
+
+    :param username: GitHub username.
+    :param year: Year to fetch.
+    :param year_end: Upper date bound applied to the selected year.
+    :returns: Mapping of day to :class:`github_visualizer.svg.ContributionCell`.
+    :raises GitHubFetchError: If parsing fails or no contribution cells are
+        found.
+    """
+
     year_start = date(year, 1, 1)
     to_date = min(year_end, date(year, 12, 31))
     encoded_username = urllib.parse.quote(username, safe="")
@@ -166,6 +202,15 @@ def fetch_year_cells(
 def fetch_all_cells(
     username: str, start_year: int, end_year: int
 ) -> dict[date, ContributionCell]:
+    """Fetch contribution cells across an inclusive year range.
+
+    :param username: GitHub username.
+    :param start_year: First year to fetch.
+    :param end_year: Last year to fetch.
+    :returns: Combined mapping of day to
+        :class:`github_visualizer.svg.ContributionCell`.
+    """
+
     today = date.today()
     all_cells: dict[date, ContributionCell] = {}
     for year in range(start_year, end_year + 1):

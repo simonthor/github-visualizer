@@ -16,6 +16,12 @@ from github_visualizer.svg import build_svg
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse CLI options for :func:`main`.
+
+    :returns: Parsed command-line arguments including username, date range,
+        output path, and interval mode.
+    """
+
     parser = argparse.ArgumentParser(
         description=(
             "Fetch a GitHub user's contribution graph across all years and write a wide SVG."
@@ -50,6 +56,18 @@ def parse_args() -> argparse.Namespace:
 
 
 def _resolve_year_range(args: argparse.Namespace, today: date) -> tuple[int, int]:
+    """Resolve and validate the inclusive year range for graph generation.
+
+    Uses :func:`github_visualizer.github_fetch.fetch_created_year` when
+    ``--start-year`` is omitted.
+
+    :param args: Parsed command-line arguments.
+    :param today: Current local date used to reject future years.
+    :returns: Inclusive ``(start_year, end_year)`` tuple.
+    :raises ValueError: If ``start_year`` is greater than ``end_year`` or if
+        ``end_year`` is in the future.
+    """
+
     created_year = fetch_created_year(args.username)
     start_year = args.start_year if args.start_year is not None else created_year
     end_year = args.end_year if args.end_year is not None else today.year
@@ -62,12 +80,32 @@ def _resolve_year_range(args: argparse.Namespace, today: date) -> tuple[int, int
 
 
 def _resolve_output_path(username: str, output: Path | None) -> Path:
+    """Return the final output path for the generated SVG file.
+
+    :param username: GitHub username used for default filename generation.
+    :param output: Optional explicit output path from CLI arguments.
+    :returns: Output file path to write.
+    """
+
     if output is not None:
         return output
     return Path(f"{username}-contributions.svg")
 
 
 def main() -> int:
+    """Run the CLI workflow and write the contribution SVG.
+
+    Coordinates argument parsing, GitHub data fetching via
+    :mod:`github_visualizer.github_fetch`, and SVG rendering via
+    :func:`github_visualizer.svg.build_svg`.
+
+    :returns: Process exit code ``0`` on success.
+    :raises ValueError: If user-provided year range arguments are invalid.
+    :raises github_visualizer.github_fetch.GitHubFetchError: If GitHub API or
+        contribution HTML fetch/parsing fails.
+    :raises OSError: If writing the output file fails.
+    """
+
     args = parse_args()
     today = date.today()
     start_year, end_year = _resolve_year_range(args, today)
