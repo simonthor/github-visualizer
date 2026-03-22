@@ -25,10 +25,6 @@ module-root = "src"
 [dependency-groups]
 dev = [
   "pytest",
-]
-lint = [
   "ruff",
-]
-type-check = [
-  "ty",
+  "ty"
 ]

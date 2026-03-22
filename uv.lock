@@ -19,20 +19,18 @@ source = { editable = "." }
 [package.dev-dependencies]
 dev = [
     { name = "pytest" },
-]
-lint = [
     { name = "ruff" },
-]
-type-check = [
     { name = "ty" },
 ]
 
 [package.metadata]
 
 [package.metadata.requires-dev]
-dev = [{ name = "pytest" }]
-lint = [{ name = "ruff" }]
-type-check = [{ name = "ty" }]
+dev = [
+    { name = "pytest" },
+    { name = "ruff" },
+    { name = "ty" },
+]
 
 [[package]]
 name = "iniconfig"
