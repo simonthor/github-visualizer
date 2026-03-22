@@ -7,19 +7,22 @@ import argparse
 import sys
 from datetime import date
 from pathlib import Path
+
 from github_visualizer.github_fetch import (
     GitHubFetchError,
     fetch_all_cells,
     fetch_created_year,
+    first_contribution_day,
+    has_contributions_before_year,
 )
-from github_visualizer.svg import build_svg
+from github_visualizer.svg import ContributionCell, build_svg
 
 
 def parse_args() -> argparse.Namespace:
     """Parse CLI options for :func:`main`.
 
     :returns: Parsed command-line arguments including username, date range,
-        output path, and interval mode.
+        output path, interval mode, and first-contribution clipping flag.
     """
 
     parser = argparse.ArgumentParser(
@@ -52,23 +55,30 @@ def parse_args() -> argparse.Namespace:
         default="none",
         help="Split rows by interval: none (single row), year, or month.",
     )
+    parser.add_argument(
+        "--from-first",
+        action="store_true",
+        help=(
+            "When the first contribution day is within the loaded years, "
+            "omit squares for earlier days."
+        ),
+    )
     return parser.parse_args()
 
 
-def _resolve_year_range(args: argparse.Namespace, today: date) -> tuple[int, int]:
+def _resolve_year_range(
+    args: argparse.Namespace, today: date, created_year: int
+) -> tuple[int, int]:
     """Resolve and validate the inclusive year range for graph generation.
-
-    Uses :func:`github_visualizer.github_fetch.fetch_created_year` when
-    ``--start-year`` is omitted.
 
     :param args: Parsed command-line arguments.
     :param today: Current local date used to reject future years.
+    :param created_year: Account creation year for default start-year behavior.
     :returns: Inclusive ``(start_year, end_year)`` tuple.
     :raises ValueError: If ``start_year`` is greater than ``end_year`` or if
         ``end_year`` is in the future.
     """
 
-    created_year = fetch_created_year(args.username)
     start_year = args.start_year if args.start_year is not None else created_year
     end_year = args.end_year if args.end_year is not None else today.year
 
@@ -92,6 +102,36 @@ def _resolve_output_path(username: str, output: Path | None) -> Path:
     return Path(f"{username}-contributions.svg")
 
 
+def _resolve_first_visible_day(
+    *,
+    username: str,
+    created_year: int,
+    cells: dict[date, ContributionCell],
+    from_first: bool,
+) -> date | None:
+    """Determine the first day that should render as a square.
+
+    :param username: GitHub username.
+    :param created_year: User account creation year.
+    :param cells: Loaded contribution cells.
+    :param from_first: Whether ``--from-first`` is enabled.
+    :returns: Earliest visible day when clipping applies, else ``None``.
+    """
+
+    if not from_first:
+        return None
+
+    loaded_first = first_contribution_day(cells)
+    if loaded_first is None:
+        return None
+
+    # Only clip if loaded years include the user's true first contribution day.
+    if has_contributions_before_year(username, created_year, loaded_first.year):
+        return None
+
+    return loaded_first
+
+
 def main() -> int:
     """Run the CLI workflow and write the contribution SVG.
 
@@ -108,15 +148,23 @@ def main() -> int:
 
     args = parse_args()
     today = date.today()
-    start_year, end_year = _resolve_year_range(args, today)
+    created_year = fetch_created_year(args.username)
+    start_year, end_year = _resolve_year_range(args, today, created_year)
 
     cells = fetch_all_cells(args.username, start_year=start_year, end_year=end_year)
+    first_visible_day = _resolve_first_visible_day(
+        username=args.username,
+        created_year=created_year,
+        cells=cells,
+        from_first=args.from_first,
+    )
     svg_text = build_svg(
         args.username,
         cells,
         start_year=start_year,
         end_year=end_year,
         interval=args.interval,
+        first_visible_day=first_visible_day,
     )
     output_path = _resolve_output_path(args.username, args.output)
     output_path.write_text(svg_text, encoding="utf-8")

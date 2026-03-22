@@ -269,10 +269,10 @@ def _build_svg_header_lines(
         f'<text x="{geometry.left_pad}" y="14" font-size="12">',
         # Add underline and blue color to username to indicate it's a link, but don't make the whole title a link
         f'<a href="{profile_url}" target="_blank" rel="noopener noreferrer" fill="#0969da" text-decoration="underline">'
-        f'{escape(username)}'
-        '</a>'
-        f'{title_text}'
-        '</text>'
+        f"{escape(username)}"
+        "</a>"
+        f"{title_text}"
+        "</text>",
     ]
 
 
@@ -345,6 +345,7 @@ def _append_segment_cells(
     geometry: SvgGeometry,
     cells: dict[date, ContributionCell],
     max_count: int,
+    first_visible_day: date | None,
 ) -> None:
     """Append contribution cells for one segment row.
 
@@ -354,10 +355,16 @@ def _append_segment_cells(
     :param geometry: Positioning constants.
     :param cells: Contribution map keyed by date.
     :param max_count: Maximum contribution count across all rows.
+    :param first_visible_day: Optional first day that should render a square.
+        Days before this date are skipped.
     """
 
     day = layout.segment.start
     while day <= layout.segment.end:
+        if first_visible_day is not None and day < first_visible_day:
+            day += timedelta(days=1)
+            continue
+
         week_index = (day - layout.grid_start).days // 7
         weekday_row = _weekday_sunday_first(day)
         x = geometry.left_pad + week_index * geometry.pitch
@@ -386,6 +393,7 @@ def build_svg(
     start_year: int,
     end_year: int,
     interval: IntervalMode = "none",
+    first_visible_day: date | None = None,
 ) -> str:
     """Render an SVG contribution graph for the selected date range.
 
@@ -394,6 +402,8 @@ def build_svg(
     :param start_year: Inclusive start year.
     :param end_year: Inclusive end year.
     :param interval: Row segmentation mode.
+    :param first_visible_day: Optional day to start rendering cells from. Days
+        before this date are omitted.
     :returns: Complete SVG document text.
     """
 
@@ -431,6 +441,7 @@ def build_svg(
             geometry=geometry,
             cells=cells,
             max_count=max_count,
+            first_visible_day=first_visible_day,
         )
 
     svg_lines.append("</svg>")

@@ -52,3 +52,25 @@ def test_year_interval_last_week_keeps_all_days():
     assert "<title>3 contributions on 2025-12-29</title>" in svg
     assert "<title>4 contributions on 2025-12-30</title>" in svg
     assert "<title>5 contributions on 2025-12-31</title>" in svg
+
+
+def test_from_first_clips_days_before_first_visible_day():
+    cells = {
+        date(2025, 1, 1): ContributionCell(count=0),
+        date(2025, 1, 2): ContributionCell(count=0),
+        date(2025, 1, 3): ContributionCell(count=2),
+        date(2025, 1, 4): ContributionCell(count=1),
+    }
+    svg = build_svg(
+        "tester",
+        cells,
+        start_year=2025,
+        end_year=2025,
+        interval="year",
+        first_visible_day=date(2025, 1, 3),
+    )
+
+    assert "<title>0 contributions on 2025-01-01</title>" not in svg
+    assert "<title>0 contributions on 2025-01-02</title>" not in svg
+    assert "<title>2 contributions on 2025-01-03</title>" in svg
+    assert "<title>1 contribution on 2025-01-04</title>" in svg

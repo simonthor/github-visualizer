@@ -217,3 +217,45 @@ def fetch_all_cells(
         cells = fetch_year_cells(username=username, year=year, year_end=today)
         all_cells.update(cells)
     return all_cells
+
+
+def first_contribution_day(cells: dict[date, ContributionCell]) -> date | None:
+    """Return the first day with at least one contribution in a cell map.
+
+    :param cells: Contribution map keyed by date.
+    :returns: Earliest date where contribution count is greater than zero, or
+        ``None`` if no contributions are present.
+    """
+
+    earliest: date | None = None
+    for day, cell in cells.items():
+        if (cell.count or 0) <= 0:
+            continue
+        if earliest is None or day < earliest:
+            earliest = day
+    return earliest
+
+
+def has_contributions_before_year(
+    username: str, created_year: int, before_year: int
+) -> bool:
+    """Check if a user has contributions in years before a boundary year.
+
+    The checked range is ``[created_year, before_year)``.
+
+    :param username: GitHub username.
+    :param created_year: Year when the account was created.
+    :param before_year: Exclusive upper year bound.
+    :returns: ``True`` if any day in the checked years has one or more
+        contributions, otherwise ``False``.
+    """
+
+    if before_year <= created_year:
+        return False
+
+    today = date.today()
+    for year in range(created_year, before_year):
+        cells = fetch_year_cells(username=username, year=year, year_end=today)
+        if first_contribution_day(cells) is not None:
+            return True
+    return False
