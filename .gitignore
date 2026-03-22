@@ -1,3 +1,4 @@
 /.pytest_cache
 /.venv
-/__pycache__
+# Ignore __pycache__ directories in folders and subfolders
+**/__pycache__/
